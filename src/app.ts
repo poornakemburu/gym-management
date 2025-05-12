@@ -3,14 +3,17 @@ import cors from "cors";
 import helmet from "helmet";
 import userRoutes from "./routes/user.routes";
 import workoutRoutes from "./routes/workout.routes";
+import coachRoutes from "./routes/coach.routes";
 
 const app = express();
 
-app.use(express.json());
+// Middleware
 app.use(cors());
 app.use(helmet());
+app.use(express.json());
 
-app.use("/api/users", userRoutes);
+// Routes
 app.use('/dev/workouts', workoutRoutes);
 
+app.use('/dev/coaches', coachRoutes);
 export default app;
