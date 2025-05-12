@@ -121,15 +121,14 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
     return;
   }
 
-  // Convert dd-mm-yyyy → yyyy-mm-dd for proper JS parsing
+  // Convert dd-mm-yyyy → UTC Date
   const [dd, mm, yyyy] = date.split('-');
-  const parsedDate = new Date(`${yyyy}-${mm}-${dd}T00:00:00+05:30`);
-  const today = new Date();
+  const parsedDateUTC = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
   // Reject past dates
-  const strippedToday = new Date(today.toDateString());
-  const strippedParsedDate = new Date(parsedDate.toDateString());
-  if (isBefore(strippedParsedDate, strippedToday)) {
+  if (parsedDateUTC < todayUTC) {
     res.status(400).json({ message: 'Cannot fetch slots for past dates.' });
     return;
   }
@@ -144,23 +143,28 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
     // Fetch booked slots
     const bookedWorkouts = await Workout.find({
       coachId,
-      date, // Store & compare in "dd-mm-yyyy"
+      date, // assuming date is stored as dd-mm-yyyy
       coachStatus: WorkoutStatus.SCHEDULED,
       clientStatus: WorkoutStatus.SCHEDULED,
     });
 
     const bookedTimes = bookedWorkouts.map(w => w.time);
 
-    // Filter times
+    // Filter available times
     const availableTimes = allPossibleTimes.filter(time => {
       if (bookedTimes.includes(time)) return false;
 
-      // If today, skip past time
-      if (strippedParsedDate.getTime() === strippedToday.getTime()) {
+      // If today, skip past times
+      const isToday =
+        parsedDateUTC.getUTCFullYear() === todayUTC.getUTCFullYear() &&
+        parsedDateUTC.getUTCMonth() === todayUTC.getUTCMonth() &&
+        parsedDateUTC.getUTCDate() === todayUTC.getUTCDate();
+
+      if (isToday) {
         const [hour, minute] = time.split(':').map(Number);
         const slotTime = new Date();
-        slotTime.setHours(hour, minute, 0, 0);
-        if (isBefore(slotTime, today)) return false;
+        slotTime.setUTCHours(hour - 5, minute - 30, 0, 0); // Convert from IST to UTC
+        if (slotTime < now) return false;
       }
 
       return true;
@@ -176,14 +180,14 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
       return `${formatHour(startHour)}:00-${formatHour(endHour)}:00 ${period}`;
     });
 
-    if(formattedSlots.length === 0) {
+    if (formattedSlots.length === 0) {
       res.status(204).json({ message: 'No slots available for the selected date.' });
       return;
     }
 
     res.status(200).json({
       message: 'Slots available for the selected date',
-      'availableSlots': formattedSlots,
+      availableSlots: formattedSlots,
     });
 
   } catch (error) {
