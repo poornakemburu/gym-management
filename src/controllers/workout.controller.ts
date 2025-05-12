@@ -40,7 +40,7 @@ export const getAvailableWorkouts = async (
 
     const nowUTC = new Date();
 
-    const istOffset = 0;
+    const istOffset = (5 * 60 + 30) * 60 * 1000;;
 
     const nowIST = new Date(nowUTC.getTime() + istOffset);
 
